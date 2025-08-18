@@ -1,9 +1,14 @@
+// App.tsx
 import { useState } from "react";
 
-function calculateHandTotal(cards) {
+interface HandResult {
+  total: number;
+  bust: boolean;
+}
+
+function calculateHandTotal(cards: string[]): HandResult {
   let total = 0;
   let aceCount = 0;
-
   for (let card of cards) {
     let val = card.split(",")[0];
     if (val === "A") {
@@ -16,10 +21,10 @@ function calculateHandTotal(cards) {
   }
   // Handle Aces (1 or 11)
   for (let i = 0; i < aceCount; i++) {
-    if (total + 10 > 21) {
+    if (total + 11 > 21) {
       total += 1;
     } else {
-      total += 10;
+      total += 11;
     }
   }
   if (total > 21) {
@@ -29,44 +34,256 @@ function calculateHandTotal(cards) {
 }
 
 export default function App() {
-  const [input, setInput] = useState("A,H 3,C 4,D");
-  const [result, setResult] = useState(null);
+  const [input, setInput] = useState<string>("A,H 3,C 4,D");
+  const [result, setResult] = useState<HandResult | null>(null);
+  const [drawnCards, setDrawnCards] = useState<string[]>([]);
+  const [deck, setDeck] = useState<string[]>([]);
+
+  // Initialize a full deck of cards
+  const initializeDeck = () => {
+    const suits = ['H', 'D', 'C', 'S']; // Hearts, Diamonds, Clubs, Spades
+    const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const newDeck = [];
+    
+    for (let suit of suits) {
+      for (let value of values) {
+        newDeck.push(`${value},${suit}`);
+      }
+    }
+    
+    // Shuffle the deck
+    for (let i = newDeck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
+    }
+    
+    setDeck(newDeck);
+    setDrawnCards([]);
+  };
+
+  const drawRandomCard = () => {
+    if (deck.length === 0) {
+      alert("No cards left in deck! Click 'New Deck' to shuffle a new deck.");
+      return;
+    }
+    
+    const newCard = deck[0];
+    const newDeck = deck.slice(1);
+    const newDrawnCards = [...drawnCards, newCard];
+    
+    setDeck(newDeck);
+    setDrawnCards(newDrawnCards);
+    setInput(newDrawnCards.join(" "));
+    setResult(calculateHandTotal(newDrawnCards));
+  };
 
   const handleCheck = () => {
     const cards = input.split(" ").filter((c) => c.length > 0);
     setResult(calculateHandTotal(cards));
   };
 
+  const clearHand = () => {
+    setDrawnCards([]);
+    setInput("");
+    setResult(null);
+  };
+
+  const formatCard = (card: string): string => {
+    const [value, suit] = card.split(",");
+    const suitSymbols: { [key: string]: string } = {
+      'H': '♥️',
+      'D': '♦️',
+      'C': '♣️',
+      'S': '♠️'
+    };
+    return `${value}${suitSymbols[suit]}`;
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-6">
-      <h1 className="text-2xl font-bold mb-4">Blackjack Hand Calculator</h1>
-      <p className="mb-2 text-gray-700">
-        Enter cards (example: <code>A,H 3,C 4,D</code>)
-      </p>
-      <div className="flex gap-2 mb-4">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          className="border rounded-lg px-3 py-2 w-64"
-        />
-        <button
-          onClick={handleCheck}
-          className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
-        >
-          Calculate
-        </button>
-      </div>
-      {result && (
-        <div
-          className={`text-lg font-semibold ${
-            result.bust ? "text-red-600" : "text-green-700"
-          }`}
-        >
-          Total: {result.total} {result.bust && "(Bust!)"}
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#f3f4f6',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '1.5rem'
+    }}>
+      <h1 style={{
+        fontSize: '1.875rem',
+        fontWeight: 'bold',
+        marginBottom: '1.5rem',
+        color: '#1f2937'
+      }}>
+        Blackjack Hand Calculator
+      </h1>
+      
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '0.5rem',
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        padding: '1.5rem',
+        width: '100%',
+        maxWidth: '28rem'
+      }}>
+        {/* Deck Status */}
+        <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
+          <p style={{ color: '#6b7280' }}>Cards remaining in deck: {deck.length}</p>
+          {deck.length === 0 && (
+            <p style={{ color: '#ef4444', fontSize: '0.875rem' }}>Deck is empty!</p>
+          )}
         </div>
-      )}
+
+        {/* Card Drawing Controls */}
+        <div style={{
+          display: 'flex',
+          gap: '0.5rem',
+          marginBottom: '1rem',
+          justifyContent: 'center',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            onClick={initializeDeck}
+            style={{
+              backgroundColor: '#10b981',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            New Deck
+          </button>
+          <button
+            onClick={drawRandomCard}
+            disabled={deck.length === 0}
+            style={{
+              backgroundColor: deck.length === 0 ? '#9ca3af' : '#3b82f6',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              cursor: deck.length === 0 ? 'not-allowed' : 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            Draw Card
+          </button>
+          <button
+            onClick={clearHand}
+            style={{
+              backgroundColor: '#ef4444',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            Clear Hand
+          </button>
+        </div>
+
+        {/* Current Hand Display */}
+        {drawnCards.length > 0 && (
+          <div style={{ marginBottom: '1rem' }}>
+            <h3 style={{ fontWeight: '600', marginBottom: '0.5rem' }}>Current Hand:</h3>
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '0.5rem',
+              justifyContent: 'center'
+            }}>
+              {drawnCards.map((card, index) => (
+                <span
+                  key={index}
+                  style={{
+                    backgroundColor: 'white',
+                    border: '2px solid #d1d5db',
+                    borderRadius: '0.5rem',
+                    padding: '0.5rem 0.75rem',
+                    fontSize: '1.125rem',
+                    fontFamily: 'monospace',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+                  }}
+                >
+                  {formatCard(card)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Manual Input (Optional) */}
+        <div style={{ marginBottom: '1rem' }}>
+          <p style={{
+            marginBottom: '0.5rem',
+            color: '#374151',
+            fontSize: '0.875rem'
+          }}>
+            Or enter cards manually (example: <code style={{
+              backgroundColor: '#f3f4f6',
+              padding: '0.125rem 0.25rem',
+              borderRadius: '0.25rem',
+              fontFamily: 'monospace'
+            }}>A,H 3,C 4,D</code>)
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              style={{
+                border: '1px solid #d1d5db',
+                borderRadius: '0.5rem',
+                padding: '0.5rem 0.75rem',
+                flex: '1',
+                minWidth: '200px'
+              }}
+            />
+            <button
+              onClick={handleCheck}
+              style={{
+                backgroundColor: '#6b7280',
+                color: 'white',
+                padding: '0.5rem 1rem',
+                borderRadius: '0.5rem',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: '500'
+              }}
+            >
+              Calculate
+            </button>
+          </div>
+        </div>
+
+        {/* Result Display */}
+        {result && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              fontSize: '2rem',
+              fontWeight: 'bold',
+              color: result.bust ? '#dc2626' : result.total === 21 ? '#d97706' : '#059669'
+            }}>
+              Total: {result.total}
+            </div>
+            {result.bust && (
+              <div style={{ color: '#dc2626', fontWeight: '600', marginTop: '0.5rem' }}>
+                BUST!
+              </div>
+            )}
+            {result.total === 21 && drawnCards.length === 2 && (
+              <div style={{ color: '#d97706', fontWeight: '600', marginTop: '0.5rem' }}>
+                BLACKJACK! 🎉
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
