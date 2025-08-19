@@ -10,7 +10,7 @@ function calculateHandTotal(cards: string[]): HandResult {
   let total = 0;
   let aceCount = 0;
   for (let card of cards) {
-    let val = card.split(" ")[0];
+    let val = card.split(",")[0];
     if (val === "A") {
       aceCount += 1;
     } else if (["K", "Q", "J"].includes(val)) {
@@ -34,14 +34,23 @@ function calculateHandTotal(cards: string[]): HandResult {
 }
 
 export default function App() {
-  const [input, setInput] = useState<string>("A H 3 C 4 D");
+  const [input, setInput] = useState<string>("A,H 3,C 4,D");
   const [result, setResult] = useState<HandResult | null>(null);
   const [drawnCards, setDrawnCards] = useState<string[]>([]);
   const [deck, setDeck] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Parse YAML data (simple implementation for card format)
+  const convertCardFormat = (card: string): string => {
+    // Convert "AH" to "A,H", "2H" to "2,H", etc.
+    // Split rank and suit - suit is the last character
+    if (card.length < 2) return card;
+    
+    const suit = card.slice(-1);
+    const rank = card.slice(0, -1);
+    return `${rank},${suit}`;
+  };
+  
   const parseYamlDeck = (yamlContent: string): string[] => {
     try {
       console.log('=== YAML Parsing Debug ===');
@@ -80,18 +89,43 @@ export default function App() {
           
           if (arrayMatch) {
             console.log('Found array format');
-            // Parse the array content
+            // Parse the array content - could be comma-separated cards in one string
             const arrayContent = arrayMatch[1];
             console.log('Array content:', arrayContent);
             
-            // Split by comma and clean up quotes/whitespace
-            const arrayCards = arrayContent.split(',').map(card => {
-              const cleaned = card.trim().replace(/^["']|["']$/g, '');
-              console.log(`Card: "${card}" -> cleaned: "${cleaned}"`);
-              return cleaned;
-            });
+            // First split by quotes/array elements, then split each element by commas
+            const arrayCards: string[] = [];
+            const elements = arrayContent.split(/["'],\s*["']|["']|\s*,\s*/);
             
-            console.log('Array cards:', arrayCards);
+            for (const element of elements) {
+              const trimmed = element.trim();
+              if (trimmed) {
+                // If element contains commas, it's multiple cards in one string
+                if (trimmed.includes(',')) {
+                  // Check if it's already in "A,H" format or "AH,2H,3H" format
+                  if (trimmed.match(/^[A-Z0-9]+,[A-Z]$/)) {
+                    // Already in A,H format
+                    arrayCards.push(trimmed);
+                  } else {
+                    // It's in "AH,2H,3H" format - split and convert each
+                    const cards = trimmed.split(',');
+                    for (const card of cards) {
+                      const cleaned = card.trim();
+                      if (cleaned) {
+                        const converted = convertCardFormat(cleaned);
+                        arrayCards.push(converted);
+                      }
+                    }
+                  }
+                } else {
+                  // Single card, convert format
+                  const converted = convertCardFormat(trimmed);
+                  arrayCards.push(converted);
+                }
+              }
+            }
+            
+            console.log('Final array cards:', arrayCards);
             cards.push(...arrayCards);
             break; // We're done, found the array format
           }
@@ -106,8 +140,9 @@ export default function App() {
           console.log('List format match:', match);
           
           if (match) {
-            console.log('Found card:', match[1]);
-            cards.push(match[1]);
+            const converted = convertCardFormat(match[1]);
+            console.log('Found card:', match[1], '-> converted:', converted);
+            cards.push(converted);
           } else if (trimmedLine && !trimmedLine.startsWith('#')) {
             console.log('Hit non-card line, ending deck section');
             // If we hit a non-card line, we're done with the deck section
@@ -172,7 +207,7 @@ export default function App() {
     
     for (let suit of suits) {
       for (let value of values) {
-        newDeck.push(`${value} ${suit}`);
+        newDeck.push(`${value},${suit}`);
       }
     }
     
