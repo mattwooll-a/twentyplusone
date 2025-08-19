@@ -1,5 +1,5 @@
 // App.tsx
-import { useState } from "react";
+import { useState} from "react";
 
 interface HandResult {
   total: number;
@@ -10,7 +10,7 @@ function calculateHandTotal(cards: string[]): HandResult {
   let total = 0;
   let aceCount = 0;
   for (let card of cards) {
-    let val = card.split(",")[0];
+    let val = card.split(" ")[0];
     if (val === "A") {
       aceCount += 1;
     } else if (["K", "Q", "J"].includes(val)) {
@@ -34,20 +34,145 @@ function calculateHandTotal(cards: string[]): HandResult {
 }
 
 export default function App() {
-  const [input, setInput] = useState<string>("A,H 3,C 4,D");
+  const [input, setInput] = useState<string>("A H 3 C 4 D");
   const [result, setResult] = useState<HandResult | null>(null);
   const [drawnCards, setDrawnCards] = useState<string[]>([]);
   const [deck, setDeck] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Initialize a full deck of cards
-  const initializeDeck = () => {
+  // Parse YAML data (simple implementation for card format)
+  const parseYamlDeck = (yamlContent: string): string[] => {
+    try {
+      console.log('=== YAML Parsing Debug ===');
+      console.log('Input YAML content:');
+      console.log(JSON.stringify(yamlContent));
+      
+      // Simple YAML parser for deck format
+      // Supports both formats:
+      // Format 1 (list):
+      // deck:
+      //   - "A,H"
+      //   - "2,H"
+      //
+      // Format 2 (array):
+      // deck: ["AH,2H,3H"]
+      
+      const lines = yamlContent.split('\n');
+      console.log(`Split into ${lines.length} lines`);
+      
+      const cards: string[] = [];
+      let inDeckSection = false;
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmedLine = line.trim();
+        
+        console.log(`Line ${i}: "${line}" -> trimmed: "${trimmedLine}"`);
+        
+        if (trimmedLine.startsWith('deck:')) {
+          console.log('Found deck: line');
+          inDeckSection = true;
+          
+          // Check if it's the array format on the same line
+          const arrayMatch = trimmedLine.match(/^deck:\s*\[(.+)\]$/);
+          console.log('Array match result:', arrayMatch);
+          
+          if (arrayMatch) {
+            console.log('Found array format');
+            // Parse the array content
+            const arrayContent = arrayMatch[1];
+            console.log('Array content:', arrayContent);
+            
+            // Split by comma and clean up quotes/whitespace
+            const arrayCards = arrayContent.split(',').map(card => {
+              const cleaned = card.trim().replace(/^["']|["']$/g, '');
+              console.log(`Card: "${card}" -> cleaned: "${cleaned}"`);
+              return cleaned;
+            });
+            
+            console.log('Array cards:', arrayCards);
+            cards.push(...arrayCards);
+            break; // We're done, found the array format
+          }
+          continue;
+        }
+        
+        if (inDeckSection) {
+          console.log('In deck section, checking line:', trimmedLine);
+          
+          // Check if line starts with - and contains a card (list format)
+          const match = trimmedLine.match(/^-\s*["']?([^"']+)["']?$/);
+          console.log('List format match:', match);
+          
+          if (match) {
+            console.log('Found card:', match[1]);
+            cards.push(match[1]);
+          } else if (trimmedLine && !trimmedLine.startsWith('#')) {
+            console.log('Hit non-card line, ending deck section');
+            // If we hit a non-card line, we're done with the deck section
+            break;
+          }
+        }
+      }
+      
+      console.log('Final cards array:', cards);
+      console.log('=== End Debug ===');
+      
+      return cards;
+    } catch (error) {
+      console.error('Parse error:', error);
+      throw new Error(`Failed to parse YAML: ${error}`);
+    }
+  };
+  // Load deck from YAML file
+  const loadDeckFromYaml = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    
+    try {
+      // Fetch the YAML file from the public directory
+      const response = await fetch('./src/save.yaml');
+      
+      if (!response.ok) {
+        throw new Error(`Failed to load save.yaml: ${response.status} ${response.statusText}`);
+      }
+      
+      const yamlContent = await response.text();
+      const cards = parseYamlDeck(yamlContent);
+      
+      if (cards.length === 0) {
+        throw new Error('No cards found in YAML file');
+      }
+      
+      // Shuffle the loaded deck
+      const shuffledDeck = [...cards];
+      for (let i = shuffledDeck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledDeck[i], shuffledDeck[j]] = [shuffledDeck[j], shuffledDeck[i]];
+      }
+      
+      setDeck(shuffledDeck);
+      setDrawnCards([]);
+      setLoadError(null);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setLoadError(`Error loading deck: ${errorMessage}`);
+      console.error('Failed to load deck from YAML:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initialize a standard deck (fallback option)
+  const initializeStandardDeck = () => {
     const suits = ['H', 'D', 'C', 'S']; // Hearts, Diamonds, Clubs, Spades
     const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
     const newDeck = [];
     
     for (let suit of suits) {
       for (let value of values) {
-        newDeck.push(`${value},${suit}`);
+        newDeck.push(`${value} ${suit}`);
       }
     }
     
@@ -59,11 +184,12 @@ export default function App() {
     
     setDeck(newDeck);
     setDrawnCards([]);
+    setLoadError(null);
   };
 
   const drawRandomCard = () => {
     if (deck.length === 0) {
-      alert("No cards left in deck! Click 'New Deck' to shuffle a new deck.");
+      alert("No cards left in deck! Load a deck from YAML or use the standard deck.");
       return;
     }
     
@@ -130,7 +256,15 @@ export default function App() {
         <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
           <p style={{ color: '#6b7280' }}>Cards remaining in deck: {deck.length}</p>
           {deck.length === 0 && (
-            <p style={{ color: '#ef4444', fontSize: '0.875rem' }}>Deck is empty!</p>
+            <p style={{ color: '#ef4444', fontSize: '0.875rem' }}>No deck loaded!</p>
+          )}
+          {loadError && (
+            <p style={{ color: '#ef4444', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+              {loadError}
+            </p>
+          )}
+          {isLoading && (
+            <p style={{ color: '#3b82f6', fontSize: '0.875rem' }}>Loading deck...</p>
           )}
         </div>
 
@@ -143,7 +277,22 @@ export default function App() {
           flexWrap: 'wrap'
         }}>
           <button
-            onClick={initializeDeck}
+            onClick={loadDeckFromYaml}
+            disabled={isLoading}
+            style={{
+              backgroundColor: isLoading ? '#9ca3af' : '#8b5cf6',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            {isLoading ? 'Loading...' : 'Load from YAML'}
+          </button>
+          <button
+            onClick={initializeStandardDeck}
             style={{
               backgroundColor: '#10b981',
               color: 'white',
@@ -154,7 +303,7 @@ export default function App() {
               fontWeight: '500'
             }}
           >
-            New Deck
+            Standard Deck
           </button>
           <button
             onClick={drawRandomCard}
