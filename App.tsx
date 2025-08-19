@@ -1,5 +1,13 @@
 // App.tsx
-import { useState} from "react";
+import { useState } from "react";
+import { 
+  loadDeckFromYaml, 
+  drawRandomCard, 
+  handleCheck,
+  clearHand,
+  formatCard,
+  initializeStandardDeck
+} from './utils/appFunctions.ts';
 
 interface HandResult {
   total: number;
@@ -41,223 +49,35 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const convertCardFormat = (card: string): string => {
-    // Convert "AH" to "A,H", "2H" to "2,H", etc.
-    // Split rank and suit - suit is the last character
-    if (card.length < 2) return card;
-    
-    const suit = card.slice(-1);
-    const rank = card.slice(0, -1);
-    return `${rank},${suit}`;
-  };
-  
-  const parseYamlDeck = (yamlContent: string): string[] => {
-    try {
-      console.log('=== YAML Parsing Debug ===');
-      console.log('Input YAML content:');
-      console.log(JSON.stringify(yamlContent));
-      
-      // Simple YAML parser for deck format
-      // Supports both formats:
-      // Format 1 (list):
-      // deck:
-      //   - "A,H"
-      //   - "2,H"
-      //
-      // Format 2 (array):
-      // deck: ["AH,2H,3H"]
-      
-      const lines = yamlContent.split('\n');
-      console.log(`Split into ${lines.length} lines`);
-      
-      const cards: string[] = [];
-      let inDeckSection = false;
-      
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const trimmedLine = line.trim();
-        
-        console.log(`Line ${i}: "${line}" -> trimmed: "${trimmedLine}"`);
-        
-        if (trimmedLine.startsWith('deck:')) {
-          console.log('Found deck: line');
-          inDeckSection = true;
-          
-          // Check if it's the array format on the same line
-          const arrayMatch = trimmedLine.match(/^deck:\s*\[(.+)\]$/);
-          console.log('Array match result:', arrayMatch);
-          
-          if (arrayMatch) {
-            console.log('Found array format');
-            // Parse the array content - could be comma-separated cards in one string
-            const arrayContent = arrayMatch[1];
-            console.log('Array content:', arrayContent);
-            
-            // First split by quotes/array elements, then split each element by commas
-            const arrayCards: string[] = [];
-            const elements = arrayContent.split(/["'],\s*["']|["']|\s*,\s*/);
-            
-            for (const element of elements) {
-              const trimmed = element.trim();
-              if (trimmed) {
-                // If element contains commas, it's multiple cards in one string
-                if (trimmed.includes(',')) {
-                  // Check if it's already in "A,H" format or "AH,2H,3H" format
-                  if (trimmed.match(/^[A-Z0-9]+,[A-Z]$/)) {
-                    // Already in A,H format
-                    arrayCards.push(trimmed);
-                  } else {
-                    // It's in "AH,2H,3H" format - split and convert each
-                    const cards = trimmed.split(',');
-                    for (const card of cards) {
-                      const cleaned = card.trim();
-                      if (cleaned) {
-                        const converted = convertCardFormat(cleaned);
-                        arrayCards.push(converted);
-                      }
-                    }
-                  }
-                } else {
-                  // Single card, convert format
-                  const converted = convertCardFormat(trimmed);
-                  arrayCards.push(converted);
-                }
-              }
-            }
-            
-            console.log('Final array cards:', arrayCards);
-            cards.push(...arrayCards);
-            break; // We're done, found the array format
-          }
-          continue;
-        }
-        
-        if (inDeckSection) {
-          console.log('In deck section, checking line:', trimmedLine);
-          
-          // Check if line starts with - and contains a card (list format)
-          const match = trimmedLine.match(/^-\s*["']?([^"']+)["']?$/);
-          console.log('List format match:', match);
-          
-          if (match) {
-            const converted = convertCardFormat(match[1]);
-            console.log('Found card:', match[1], '-> converted:', converted);
-            cards.push(converted);
-          } else if (trimmedLine && !trimmedLine.startsWith('#')) {
-            console.log('Hit non-card line, ending deck section');
-            // If we hit a non-card line, we're done with the deck section
-            break;
-          }
-        }
-      }
-      
-      console.log('Final cards array:', cards);
-      console.log('=== End Debug ===');
-      
-      return cards;
-    } catch (error) {
-      console.error('Parse error:', error);
-      throw new Error(`Failed to parse YAML: ${error}`);
-    }
-  };
-  // Load deck from YAML file
-  const loadDeckFromYaml = async () => {
-    setIsLoading(true);
-    setLoadError(null);
-    
-    try {
-      // Fetch the YAML file from the public directory
-      const response = await fetch('./src/save.yaml');
-      
-      if (!response.ok) {
-        throw new Error(`Failed to load save.yaml: ${response.status} ${response.statusText}`);
-      }
-      
-      const yamlContent = await response.text();
-      const cards = parseYamlDeck(yamlContent);
-      
-      if (cards.length === 0) {
-        throw new Error('No cards found in YAML file');
-      }
-      
-      // Shuffle the loaded deck
-      const shuffledDeck = [...cards];
-      for (let i = shuffledDeck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffledDeck[i], shuffledDeck[j]] = [shuffledDeck[j], shuffledDeck[i]];
-      }
-      
-      setDeck(shuffledDeck);
-      setDrawnCards([]);
-      setLoadError(null);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      setLoadError(`Error loading deck: ${errorMessage}`);
-      console.error('Failed to load deck from YAML:', error);
-    } finally {
-      setIsLoading(false);
-    }
+  // Create state object for passing to functions
+  const appState = {
+    setDeck,
+    setIsLoading,
+    setLoadError,
+    setDrawnCards,
+    setResult,
+    setInput
   };
 
-  // Initialize a standard deck (fallback option)
-  const initializeStandardDeck = () => {
-    const suits = ['H', 'D', 'C', 'S']; // Hearts, Diamonds, Clubs, Spades
-    const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-    const newDeck = [];
-    
-    for (let suit of suits) {
-      for (let value of values) {
-        newDeck.push(`${value},${suit}`);
-      }
-    }
-    
-    // Shuffle the deck
-    for (let i = newDeck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
-    }
-    
-    setDeck(newDeck);
-    setDrawnCards([]);
-    setLoadError(null);
+  // Event handlers that call your imported functions
+  const handleLoadYamlDeck = async () => {
+    await loadDeckFromYaml(appState);
   };
 
-  const drawRandomCard = () => {
-    if (deck.length === 0) {
-      alert("No cards left in deck! Load a deck from YAML or use the standard deck.");
-      return;
-    }
-    
-    const newCard = deck[0];
-    const newDeck = deck.slice(1);
-    const newDrawnCards = [...drawnCards, newCard];
-    
-    setDeck(newDeck);
-    setDrawnCards(newDrawnCards);
-    setInput(newDrawnCards.join(" "));
-    setResult(calculateHandTotal(newDrawnCards));
+  const handleInitializeStandardDeck = () => {
+    initializeStandardDeck(appState);
   };
 
-  const handleCheck = () => {
-    const cards = input.split(" ").filter((c) => c.length > 0);
-    setResult(calculateHandTotal(cards));
+  const handleDrawRandomCard = () => {
+    drawRandomCard(deck, drawnCards, calculateHandTotal, appState);
   };
 
-  const clearHand = () => {
-    setDrawnCards([]);
-    setInput("");
-    setResult(null);
+  const handleCheckHand = () => {
+    handleCheck(input, calculateHandTotal, appState);
   };
 
-  const formatCard = (card: string): string => {
-    const [value, suit] = card.split(",");
-    const suitSymbols: { [key: string]: string } = {
-      'H': '♥️',
-      'D': '♦️',
-      'C': '♣️',
-      'S': '♠️'
-    };
-    return `${value}${suitSymbols[suit]}`;
+  const handleClearHand = () => {
+    clearHand(appState);
   };
 
   return (
@@ -312,7 +132,7 @@ export default function App() {
           flexWrap: 'wrap'
         }}>
           <button
-            onClick={loadDeckFromYaml}
+            onClick={handleLoadYamlDeck}
             disabled={isLoading}
             style={{
               backgroundColor: isLoading ? '#9ca3af' : '#8b5cf6',
@@ -327,7 +147,7 @@ export default function App() {
             {isLoading ? 'Loading...' : 'Load from YAML'}
           </button>
           <button
-            onClick={initializeStandardDeck}
+            onClick={handleInitializeStandardDeck}
             style={{
               backgroundColor: '#10b981',
               color: 'white',
@@ -341,7 +161,7 @@ export default function App() {
             Standard Deck
           </button>
           <button
-            onClick={drawRandomCard}
+            onClick={handleDrawRandomCard}
             disabled={deck.length === 0}
             style={{
               backgroundColor: deck.length === 0 ? '#9ca3af' : '#3b82f6',
@@ -356,7 +176,7 @@ export default function App() {
             Draw Card
           </button>
           <button
-            onClick={clearHand}
+            onClick={handleClearHand}
             style={{
               backgroundColor: '#ef4444',
               color: 'white',
@@ -429,7 +249,7 @@ export default function App() {
               }}
             />
             <button
-              onClick={handleCheck}
+              onClick={handleCheckHand}
               style={{
                 backgroundColor: '#6b7280',
                 color: 'white',
