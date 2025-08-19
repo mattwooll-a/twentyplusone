@@ -1,293 +1,136 @@
-// App.tsx
-import { useState } from "react";
-import { 
-  loadDeckFromYaml, 
-  drawRandomCard, 
-  handleCheck,
-  clearHand,
-  formatCard,
-  initializeStandardDeck
-} from './utils/appFunctions.ts';
-
-interface HandResult {
-  total: number;
-  bust: boolean;
-}
-
-function calculateHandTotal(cards: string[]): HandResult {
-  let total = 0;
-  let aceCount = 0;
-  for (let card of cards) {
-    let val = card.split(",")[0];
-    if (val === "A") {
-      aceCount += 1;
-    } else if (["K", "Q", "J"].includes(val)) {
-      total += 10;
-    } else {
-      total += parseInt(val, 10);
-    }
-  }
-  // Handle Aces (1 or 11)
-  for (let i = 0; i < aceCount; i++) {
-    if (total + 11 > 21) {
-      total += 1;
-    } else {
-      total += 11;
-    }
-  }
-  if (total > 21) {
-    return { total, bust: true };
-  }
-  return { total, bust: false };
-}
+// App.tsx - Multi-table blackjack application
+import { useState } from 'react';
+import type { Table } from './utils/types';
+import { TableComponent } from './utils//TableComponent';
+import { createNewTable } from './utils/tableFunctions';
 
 export default function App() {
-  const [input, setInput] = useState<string>("A,H 3,C 4,D");
-  const [result, setResult] = useState<HandResult | null>(null);
-  const [drawnCards, setDrawnCards] = useState<string[]>([]);
-  const [deck, setDeck] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [tables, setTables] = useState<Table[]>([
+    createNewTable('table-1', 'Table 1')
+  ]);
 
-  // Create state object for passing to functions
-  const appState = {
-    setDeck,
-    setIsLoading,
-    setLoadError,
-    setDrawnCards,
-    setResult,
-    setInput
+  const addNewTable = () => {
+    const newTableId = `table-${tables.length + 1}`;
+    const newTableName = `Table ${tables.length + 1}`;
+    const newTable = createNewTable(newTableId, newTableName);
+    setTables([...tables, newTable]);
   };
 
-  // Event handlers that call your imported functions
-  const handleLoadYamlDeck = async () => {
-    await loadDeckFromYaml(appState);
-  };
-
-  const handleInitializeStandardDeck = () => {
-    initializeStandardDeck(appState);
-  };
-
-  const handleDrawRandomCard = () => {
-    drawRandomCard(deck, drawnCards, calculateHandTotal, appState);
-  };
-
-  const handleCheckHand = () => {
-    handleCheck(input, calculateHandTotal, appState);
-  };
-
-  const handleClearHand = () => {
-    clearHand(appState);
+  const resetAllTables = () => {
+    setTables([createNewTable('table-1', 'Table 1')]);
   };
 
   return (
     <div style={{
       minHeight: '100vh',
       backgroundColor: '#f3f4f6',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
       padding: '1.5rem'
     }}>
-      <h1 style={{
-        fontSize: '1.875rem',
-        fontWeight: 'bold',
-        marginBottom: '1.5rem',
-        color: '#1f2937'
-      }}>
-        Blackjack Hand Calculator
-      </h1>
-      
+      {/* Header */}
       <div style={{
-        backgroundColor: 'white',
-        borderRadius: '0.5rem',
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-        padding: '1.5rem',
-        width: '100%',
-        maxWidth: '28rem'
+        textAlign: 'center',
+        marginBottom: '2rem'
       }}>
-        {/* Deck Status */}
-        <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
-          <p style={{ color: '#6b7280' }}>Cards remaining in deck: {deck.length}</p>
-          {deck.length === 0 && (
-            <p style={{ color: '#ef4444', fontSize: '0.875rem' }}>No deck loaded!</p>
-          )}
-          {loadError && (
-            <p style={{ color: '#ef4444', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-              {loadError}
-            </p>
-          )}
-          {isLoading && (
-            <p style={{ color: '#3b82f6', fontSize: '0.875rem' }}>Loading deck...</p>
-          )}
-        </div>
-
-        {/* Card Drawing Controls */}
+        <h1 style={{
+          fontSize: '2.25rem',
+          fontWeight: 'bold',
+          color: '#1f2937',
+          marginBottom: '1rem'
+        }}>
+          Multi-Table Blackjack
+        </h1>
+        
         <div style={{
           display: 'flex',
-          gap: '0.5rem',
-          marginBottom: '1rem',
+          gap: '1rem',
           justifyContent: 'center',
           flexWrap: 'wrap'
         }}>
           <button
-            onClick={handleLoadYamlDeck}
-            disabled={isLoading}
+            onClick={addNewTable}
             style={{
-              backgroundColor: isLoading ? '#9ca3af' : '#8b5cf6',
+              backgroundColor: '#059669',
               color: 'white',
-              padding: '0.5rem 1rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
-              fontWeight: '500'
-            }}
-          >
-            {isLoading ? 'Loading...' : 'Load from YAML'}
-          </button>
-          <button
-            onClick={handleInitializeStandardDeck}
-            style={{
-              backgroundColor: '#10b981',
-              color: 'white',
-              padding: '0.5rem 1rem',
+              padding: '0.75rem 1.5rem',
               borderRadius: '0.5rem',
               border: 'none',
               cursor: 'pointer',
-              fontWeight: '500'
+              fontWeight: '600',
+              fontSize: '1rem'
             }}
           >
-            Standard Deck
+            + Add New Table
           </button>
+          
           <button
-            onClick={handleDrawRandomCard}
-            disabled={deck.length === 0}
+            onClick={resetAllTables}
             style={{
-              backgroundColor: deck.length === 0 ? '#9ca3af' : '#3b82f6',
+              backgroundColor: '#dc2626',
               color: 'white',
-              padding: '0.5rem 1rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              cursor: deck.length === 0 ? 'not-allowed' : 'pointer',
-              fontWeight: '500'
-            }}
-          >
-            Draw Card
-          </button>
-          <button
-            onClick={handleClearHand}
-            style={{
-              backgroundColor: '#ef4444',
-              color: 'white',
-              padding: '0.5rem 1rem',
+              padding: '0.75rem 1.5rem',
               borderRadius: '0.5rem',
               border: 'none',
               cursor: 'pointer',
-              fontWeight: '500'
+              fontWeight: '600',
+              fontSize: '1rem'
             }}
           >
-            Clear Hand
+            Reset All Tables
           </button>
-        </div>
-
-        {/* Current Hand Display */}
-        {drawnCards.length > 0 && (
-          <div style={{ marginBottom: '1rem' }}>
-            <h3 style={{ fontWeight: '600', marginBottom: '0.5rem' }}>Current Hand:</h3>
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.5rem',
-              justifyContent: 'center'
-            }}>
-              {drawnCards.map((card, index) => (
-                <span
-                  key={index}
-                  style={{
-                    backgroundColor: 'white',
-                    border: '2px solid #d1d5db',
-                    borderRadius: '0.5rem',
-                    padding: '0.5rem 0.75rem',
-                    fontSize: '1.125rem',
-                    fontFamily: 'monospace',
-                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
-                  }}
-                >
-                  {formatCard(card)}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Manual Input (Optional) */}
-        <div style={{ marginBottom: '1rem' }}>
-          <p style={{
-            marginBottom: '0.5rem',
+          
+          <div style={{
+            backgroundColor: 'white',
+            padding: '0.75rem 1.5rem',
+            borderRadius: '0.5rem',
+            border: '2px solid #e5e7eb',
             color: '#374151',
-            fontSize: '0.875rem'
+            fontWeight: '600'
           }}>
-            Or enter cards manually (example: <code style={{
-              backgroundColor: '#f3f4f6',
-              padding: '0.125rem 0.25rem',
-              borderRadius: '0.25rem',
-              fontFamily: 'monospace'
-            }}>A,H 3,C 4,D</code>)
-          </p>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              style={{
-                border: '1px solid #d1d5db',
-                borderRadius: '0.5rem',
-                padding: '0.5rem 0.75rem',
-                flex: '1',
-                minWidth: '200px'
-              }}
-            />
-            <button
-              onClick={handleCheckHand}
-              style={{
-                backgroundColor: '#6b7280',
-                color: 'white',
-                padding: '0.5rem 1rem',
-                borderRadius: '0.5rem',
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: '500'
-              }}
-            >
-              Calculate
-            </button>
+            Active Tables: {tables.length}
           </div>
         </div>
-
-        {/* Result Display */}
-        {result && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{
-              fontSize: '2rem',
-              fontWeight: 'bold',
-              color: result.bust ? '#dc2626' : result.total === 21 ? '#d97706' : '#059669'
-            }}>
-              Total: {result.total}
-            </div>
-            {result.bust && (
-              <div style={{ color: '#dc2626', fontWeight: '600', marginTop: '0.5rem' }}>
-                BUST!
-              </div>
-            )}
-            {result.total === 21 && drawnCards.length === 2 && (
-              <div style={{ color: '#d97706', fontWeight: '600', marginTop: '0.5rem' }}>
-                BLACKJACK! 🎉
-              </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* Tables Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+        gap: '1.5rem',
+        maxWidth: '1200px',
+        margin: '0 auto'
+      }}>
+        {tables.map(table => (
+          <TableComponent
+            key={table.id}
+            table={table}
+            tables={tables}
+            setTables={setTables}
+            canRemove={tables.length > 1}
+          />
+        ))}
+      </div>
+
+      {/* Instructions */}
+      {tables.length === 1 && (
+        <div style={{
+          textAlign: 'center',
+          marginTop: '2rem',
+          padding: '1rem',
+          backgroundColor: 'white',
+          borderRadius: '0.5rem',
+          maxWidth: '600px',
+          margin: '2rem auto 0',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+        }}>
+          <h3 style={{ color: '#374151', marginBottom: '0.5rem' }}>
+            🎰 Welcome to Multi-Table Blackjack!
+          </h3>
+          <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            Each table has its own independent deck. Click "Add New Table" to create 
+            additional tables for multiple games or different deck configurations.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
