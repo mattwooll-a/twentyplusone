@@ -8,8 +8,11 @@ export interface HandResult {
     id: string;
     name: string;
     deck: string[];
+    Dealerdeck: string[];
     drawnCards: string[];
+    dealerHand: string [];
     input: string;
+    dealer : HandResult | null;
     result: HandResult | null;
     isLoading: boolean;
     loadError: string | null;

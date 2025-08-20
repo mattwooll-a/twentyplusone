@@ -9,7 +9,9 @@ import {
   clearHand,
   updateTableInput,
   removeTable,
-  formatCard 
+  formatCard, 
+  DealerDrawCard,
+  drawBothCards
 } from './tableFunctions';
 
 interface TableComponentProps {
@@ -71,10 +73,13 @@ export const TableComponent: React.FC<TableComponentProps> = ({
       {/* Deck Status */}
       <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
         <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-          Cards remaining: {table.deck.length}
+          Player Cards remaining: {table.deck.length}
+        </p>
+        <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+          Dealer Cards remaining: {table.Dealerdeck.length}
         </p>
         {table.deck.length === 0 && (
-          <p style={{ color: '#ef4444', fontSize: '0.75rem' }}>No deck loaded!</p>
+          <p style={{ color: '#ef4444', fontSize: '0.75rem' }}>No player deck loaded!</p>
         )}
         {table.loadError && (
           <p style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.5rem' }}>
@@ -125,7 +130,7 @@ export const TableComponent: React.FC<TableComponentProps> = ({
           Standard
         </button>
         <button
-          onClick={() => drawRandomCard(table.id, tables, setTables)}
+          onClick={() => drawBothCards(table.id, tables, setTables)}
           disabled={table.deck.length === 0}
           style={{
             backgroundColor: table.deck.length === 0 ? '#9ca3af' : '#3b82f6',
@@ -138,7 +143,7 @@ export const TableComponent: React.FC<TableComponentProps> = ({
             fontWeight: '500'
           }}
         >
-          Draw Card
+          Deal Cards
         </button>
         <button
           onClick={() => clearHand(table.id, tables, setTables)}
@@ -157,11 +162,52 @@ export const TableComponent: React.FC<TableComponentProps> = ({
         </button>
       </div>
 
-      {/* Current Hand */}
+      {/* Additional Controls Row */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '0.5rem',
+        marginBottom: '1rem'
+      }}>
+        <button
+          onClick={() => drawRandomCard(table.id, tables, setTables)}
+          disabled={table.deck.length === 0}
+          style={{
+            backgroundColor: table.deck.length === 0 ? '#9ca3af' : '#6366f1',
+            color: 'white',
+            padding: '0.5rem',
+            borderRadius: '0.5rem',
+            border: 'none',
+            cursor: table.deck.length === 0 ? 'not-allowed' : 'pointer',
+            fontSize: '0.875rem',
+            fontWeight: '500'
+          }}
+        >
+          Player Card
+        </button>
+        <button
+          onClick={() => DealerDrawCard(table.id, tables, setTables)}
+          disabled={table.Dealerdeck.length === 0}
+          style={{
+            backgroundColor: table.Dealerdeck.length === 0 ? '#9ca3af' : '#f59e0b',
+            color: 'white',
+            padding: '0.5rem',
+            borderRadius: '0.5rem',
+            border: 'none',
+            cursor: table.Dealerdeck.length === 0 ? 'not-allowed' : 'pointer',
+            fontSize: '0.875rem',
+            fontWeight: '500'
+          }}
+        >
+          Dealer Card
+        </button>
+      </div>
+
+      {/* Player Hand */}
       {table.drawnCards.length > 0 && (
         <div style={{ marginBottom: '1rem' }}>
           <h4 style={{ fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
-            Current Hand:
+            Player Hand:
           </h4>
           <div style={{
             display: 'flex',
@@ -175,6 +221,37 @@ export const TableComponent: React.FC<TableComponentProps> = ({
                 style={{
                   backgroundColor: '#f9fafb',
                   border: '1px solid #d1d5db',
+                  borderRadius: '0.25rem',
+                  padding: '0.25rem 0.5rem',
+                  fontSize: '0.875rem',
+                  fontFamily: 'monospace'
+                }}
+              >
+                {formatCard(card)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Dealer Hand */}
+      {table.dealerHand.length > 0 && (
+        <div style={{ marginBottom: '1rem' }}>
+          <h4 style={{ fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+            Dealer Hand:
+          </h4>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.25rem',
+            justifyContent: 'center'
+          }}>
+            {table.dealerHand.map((card, index) => (
+              <span
+                key={index}
+                style={{
+                  backgroundColor: '#fef3c7',
+                  border: '1px solid #f59e0b',
                   borderRadius: '0.25rem',
                   padding: '0.25rem 0.5rem',
                   fontSize: '0.875rem',
@@ -222,28 +299,60 @@ export const TableComponent: React.FC<TableComponentProps> = ({
         </div>
       </div>
 
-      {/* Result */}
-      {table.result && (
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-            color: table.result.bust ? '#dc2626' : table.result.total === 21 ? '#d97706' : '#059669'
-          }}>
-            Total: {table.result.total}
+      {/* Results */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        {/* Player Result */}
+        {table.result && (
+          <div style={{ textAlign: 'center' }}>
+            <h5 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+              Player
+            </h5>
+            <div style={{
+              fontSize: '1.25rem',
+              fontWeight: 'bold',
+              color: table.result.bust ? '#dc2626' : table.result.total === 21 ? '#d97706' : '#059669'
+            }}>
+              {table.result.total}
+            </div>
+            {table.result.bust && (
+              <div style={{ color: '#dc2626', fontWeight: '600', fontSize: '0.75rem' }}>
+                BUST!
+              </div>
+            )}
+            {table.result.total === 21 && table.drawnCards.length === 2 && (
+              <div style={{ color: '#d97706', fontWeight: '600', fontSize: '0.75rem' }}>
+                BLACKJACK! 🎉
+              </div>
+            )}
           </div>
-          {table.result.bust && (
-            <div style={{ color: '#dc2626', fontWeight: '600', fontSize: '0.875rem' }}>
-              BUST!
+        )}
+
+        {/* Dealer Result */}
+        {table.dealer && (
+          <div style={{ textAlign: 'center' }}>
+            <h5 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+              Dealer
+            </h5>
+            <div style={{
+              fontSize: '1.25rem',
+              fontWeight: 'bold',
+              color: table.dealer.bust ? '#dc2626' : table.dealer.total === 21 ? '#d97706' : '#f59e0b'
+            }}>
+              {table.dealer.total}
             </div>
-          )}
-          {table.result.total === 21 && table.drawnCards.length === 2 && (
-            <div style={{ color: '#d97706', fontWeight: '600', fontSize: '0.875rem' }}>
-              BLACKJACK! 🎉
-            </div>
-          )}
-        </div>
-      )}
+            {table.dealer.bust && (
+              <div style={{ color: '#dc2626', fontWeight: '600', fontSize: '0.75rem' }}>
+                BUST!
+              </div>
+            )}
+            {table.dealer.total === 21 && table.dealerHand.length === 2 && (
+              <div style={{ color: '#d97706', fontWeight: '600', fontSize: '0.75rem' }}>
+                BLACKJACK! 🎉
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

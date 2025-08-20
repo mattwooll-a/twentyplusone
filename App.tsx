@@ -13,6 +13,7 @@ export default function App() {
     const newTableId = `table-${tables.length + 1}`;
     const newTableName = `Table ${tables.length + 1}`;
     const newTable = createNewTable(newTableId, newTableName);
+    //newTable.Dealerdeck = createStandardDeck();
     setTables([...tables, newTable]);
   };
 

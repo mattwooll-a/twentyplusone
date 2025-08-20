@@ -9,8 +9,11 @@ export const createNewTable = (id: string, name: string): Table => ({
   id,
   name,
   deck: [],
+  Dealerdeck: createStandardDeck(), // Initialize dealer deck immediately
   drawnCards: [],
+  dealerHand: [],
   input: "",
+  dealer: null,
   result: null,
   isLoading: false,
   loadError: null,
@@ -147,8 +150,90 @@ export const initializeStandardDeck = (
   }
 };
 
+export const initializeDealerDeck = (
+  tableId: string,
+  tables: Table[],
+  setTables: (tables: Table[]) => void
+) => {
+  try {
+    const standardDeck = createStandardDeck();
+    const shuffledDeck = shuffleDeck(standardDeck);
+    
+    setTables(tables.map(table => 
+      table.id === tableId 
+        ? { 
+            ...table, 
+            Dealerdeck: shuffledDeck, 
+            dealerHand: [], 
+            loadError: null 
+          }
+        : table
+    ));
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create standard deck';
+    setTables(tables.map(table => 
+      table.id === tableId 
+        ? { ...table, loadError: errorMessage }
+        : table
+    ));
+  }
+};
+
 /**
- * Draws a random card for a specific table
+ * Draws cards for both player and dealer in a single atomic operation
+ */
+export const drawBothCards = (
+  tableId: string,
+  tables: Table[],
+  setTables: (tables: Table[]) => void
+) => {
+  setTables(tables.map(table => {
+    if (table.id !== tableId) return table;
+    
+    // Check if player deck is empty
+    if (table.deck.length === 0) {
+      alert("No cards left in player deck! Load a deck from YAML or use the standard deck.");
+      return table;
+    }
+    
+    // Check if dealer deck is empty and refill if needed
+    let dealerDeck = table.Dealerdeck;
+    if (dealerDeck.length === 0) {
+      console.log("Dealer deck empty, adding new deck to shoe");
+      const newDealerDeck = createStandardDeck();
+      dealerDeck = shuffleDeck(newDealerDeck);
+    }
+    
+    // Draw player card
+    const playerCard = table.deck[0];
+    const newPlayerDeck = table.deck.slice(1);
+    const newPlayerCards = [...table.drawnCards, playerCard];
+    const newPlayerInput = newPlayerCards.join(" ");
+    const newPlayerResult = calculateHandTotal(newPlayerCards);
+    
+    // Draw dealer card
+    const dealerCard = dealerDeck[0];
+    const newDealerDeck = dealerDeck.slice(1);
+    const newDealerCards = [...table.dealerHand, dealerCard];
+    const newDealerResult = calculateHandTotal(newDealerCards);
+    
+    return {
+      ...table,
+      // Player updates
+      deck: newPlayerDeck,
+      drawnCards: newPlayerCards,
+      input: newPlayerInput,
+      result: newPlayerResult,
+      // Dealer updates
+      Dealerdeck: newDealerDeck,
+      dealerHand: newDealerCards,
+      dealer: newDealerResult
+    };
+  }));
+};
+
+/**
+ * Draws a random card for player only
  */
 export const drawRandomCard = (
   tableId: string,
@@ -175,6 +260,40 @@ export const drawRandomCard = (
       drawnCards: newDrawnCards,
       input: newInput,
       result: newResult
+    };
+  }));
+};
+
+/**
+ * Draws a card for dealer only
+ */
+export const DealerDrawCard = (
+  tableId: string,
+  tables: Table[],
+  setTables: (tables: Table[]) => void
+) => {
+  setTables(tables.map(table => {
+    if (table.id !== tableId) return table;
+    
+    let dealerDeck = table.Dealerdeck;
+    
+    // Check if dealer deck is empty and refill if needed
+    if (dealerDeck.length === 0) {
+      console.log("Dealer deck empty, adding new deck to shoe");
+      const newDealerDeck = createStandardDeck();
+      dealerDeck = shuffleDeck(newDealerDeck);
+    }
+    
+    const newCard = dealerDeck[0];
+    const newDeck = dealerDeck.slice(1);
+    const newDrawnCards = [...table.dealerHand, newCard];
+    const newDealerVal = calculateHandTotal(newDrawnCards);
+    
+    return {
+      ...table,
+      Dealerdeck: newDeck,
+      dealerHand: newDrawnCards,
+      dealer: newDealerVal
     };
   }));
 };
@@ -207,7 +326,7 @@ export const clearHand = (
 ) => {
   setTables(tables.map(table => 
     table.id === tableId 
-      ? { ...table, drawnCards: [], input: "", result: null }
+      ? { ...table, drawnCards: [], dealerHand: [], input: "", result: null, dealer: null }
       : table
   ));
 };
